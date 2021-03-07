@@ -1,4 +1,5 @@
 import pygame
+import pygame.mouse as mouse
 pygame.init()
 font = pygame.font.SysFont("monospace", 18)
 from random import randint
@@ -12,7 +13,7 @@ class PotatoTrainer:
         self.banner_color = (0, 0, 0)
         self.banner_text_color = (0, 255, 0)
         self.targetzone_h = 1000
-        self.target_color = (40, 40, 40)
+        self.target_color = (140, 40, 140)
         self.w = 1000
         self.h = self.targetzone_h + self.banner_h
         self.tw = 75
@@ -23,6 +24,10 @@ class PotatoTrainer:
         self.targets = [None] * self.max_targets
         self.tidx = 0 # target index
         self.screen = pygame.display.set_mode([self.w, self.h])
+        self.target_origin = (0, 0)
+        margin = 100
+        self.target_spawn_zone_x = (margin + self.tw, self.w - self.tw - margin)
+        self.target_spawn_zone_y = (margin + self.th, self.h - self.banner_h - self.th - margin)
 
         # custom event to add new targets at a regular time interval
         self.ADD_TARGET_EVENT = pygame.USEREVENT + 1
@@ -37,6 +42,17 @@ class PotatoTrainer:
         self.hits = 0
         self.misses = 0
 
+        # mouse invisible, now in virtual mode
+        mouse.set_visible(False)
+        # grab mouse
+        pygame.event.set_grab(True)
+
+        # crosshair color, position and dimension
+        tmp = 40 # length of crosshair bar
+        self.crosshair_x = ((self.w - tmp) / 2 + 1, self.targetzone_h / 2, tmp, tmp / 10)
+        self.crosshair_y = (self.w / 2, (self.targetzone_h - tmp) / 2 + 1, tmp / 10, tmp)
+        self.crosshair_coord = (self.crosshair_y[0], self.crosshair_x[1])
+        self.crosshair_color = (0, 0, 0)
 
     def get_num_targets(self):
         return sum(x is not None for x in self.targets)
@@ -58,9 +74,13 @@ class PotatoTrainer:
                 if i >= self.max_targets:
                     i = 0
 
+        x = randint(*self.target_spawn_zone_x)
+        y = randint(*self.target_spawn_zone_y)
+        x += self.target_origin[0]
+        y += self.target_origin[1]
         self.targets[self.tidx] = (
-            randint(0, self.w - self.tw),
-            randint(0, self.h - self.banner_h - self.th),
+            x,
+            y,
             self.tw,
             self.th
         )
@@ -121,9 +141,43 @@ class PotatoTrainer:
     
 
     def update_targets(self):
-        for t in self.targets:
+        mouse_move = (0, 0)
+        prev_mouse_move = mouse_move
+        mouse_move = mouse.get_rel()
+
+        # adapt target's origin (for spawning new targets)
+        self.target_origin = (self.target_origin[0] - mouse_move[0], self.target_origin[1] - mouse_move[1])
+
+        # draw target spawn zone
+        # pygame.draw.rect(self.screen, (0x7f, 0, 0x0),
+        #                  (
+        #                      self.target_spawn_zone_x[0] + self.target_origin[0],
+        #                      self.target_spawn_zone_x[1] + self.target_origin[0],
+        #                      self.target_spawn_zone_y[0] + self.target_origin[1],
+        #                      self.target_spawn_zone_y[1] + self.target_origin[1],
+        #                  )
+        # )
+        pygame.draw.rect(self.screen, (0x7f, 0, 0x0),
+                         (
+                             self.target_spawn_zone_x[0] + self.target_origin[0],
+                             self.target_spawn_zone_y[0] + self.target_origin[1],
+                             self.target_spawn_zone_x[1] - self.target_spawn_zone_x[0],
+                             self.target_spawn_zone_y[1] - self.target_spawn_zone_y[0]
+                         )
+        )
+        print(
+            self.target_spawn_zone_x[0],
+            self.target_spawn_zone_x[1],
+            self.target_spawn_zone_y[0],
+            self.target_spawn_zone_y[1]
+        )
+
+        # adapt target display to inverse of mouse mouvement (first person)
+        for i, t in enumerate(self.targets):
             if t:
-                pygame.draw.rect(self.screen, self.target_color, t)
+                self.targets[i] = (t[0] - mouse_move[0], t[1] - mouse_move[1], t[2], t[3])
+                pygame.draw.rect(self.screen, self.target_color, self.targets[i])
+        prev_mouse_move = mouse_move
 
 
     def update_banner(self):
@@ -154,6 +208,11 @@ class PotatoTrainer:
         if c - self.last_click_time >= self.punish_time:
             self.last_click_time = c
             self.handle_miss()
+
+
+    def draw_crosshair(self):
+        pygame.draw.rect(self.screen, self.crosshair_color, self.crosshair_x)
+        pygame.draw.rect(self.screen, self.crosshair_color, self.crosshair_y)
         
 
     def run(self):
@@ -166,17 +225,16 @@ class PotatoTrainer:
                     self.add_target()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     self.last_click_time = time()
-                    self.handle_click(pygame.mouse.get_pos())
+                    self.handle_click(self.crosshair_coord)
                     
             self.screen.fill((240, 240, 240))
-            
-            self.update_targets()
-
-            self.update_banner()
 
             self.check_punish()
-            
-            
+
+            self.update_targets()
+            self.update_banner()
+            self.draw_crosshair()
+
             # display drawings
             pygame.display.flip()
 
