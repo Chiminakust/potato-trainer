@@ -4,6 +4,7 @@ pygame.init()
 font = pygame.font.SysFont("monospace", 18)
 from random import randint
 from time import time
+from math import atan
 
 
 class PotatoTrainer:
@@ -46,6 +47,9 @@ class PotatoTrainer:
         mouse.set_visible(False)
         # grab mouse
         pygame.event.set_grab(True)
+
+        # distance to "wall" in pixels (radius of sphere)
+        self.R = self.w / 2
 
         # crosshair color, position and dimension
         tmp = 40 # length of crosshair bar
@@ -145,32 +149,34 @@ class PotatoTrainer:
         prev_mouse_move = mouse_move
         mouse_move = mouse.get_rel()
 
+        # project 
+        mouse_move = (
+            self.R * atan(mouse_move[0] / (self.R * 0.5)),
+            self.R * atan(mouse_move[1] / (self.R * 0.5))
+        )
+
         # adapt target's origin (for spawning new targets)
         self.target_origin = (self.target_origin[0] - mouse_move[0], self.target_origin[1] - mouse_move[1])
 
         # draw target spawn zone
-        # pygame.draw.rect(self.screen, (0x7f, 0, 0x0),
-        #                  (
-        #                      self.target_spawn_zone_x[0] + self.target_origin[0],
-        #                      self.target_spawn_zone_x[1] + self.target_origin[0],
-        #                      self.target_spawn_zone_y[0] + self.target_origin[1],
-        #                      self.target_spawn_zone_y[1] + self.target_origin[1],
-        #                  )
-        # )
-        pygame.draw.rect(self.screen, (0x7f, 0, 0x0),
-                         (
-                             self.target_spawn_zone_x[0] + self.target_origin[0],
-                             self.target_spawn_zone_y[0] + self.target_origin[1],
-                             self.target_spawn_zone_x[1] - self.target_spawn_zone_x[0],
-                             self.target_spawn_zone_y[1] - self.target_spawn_zone_y[0]
-                         )
+        r = (
+            self.target_spawn_zone_x[0] + self.target_origin[0],
+            self.target_spawn_zone_y[0] + self.target_origin[1],
+            self.target_spawn_zone_x[1] - self.target_spawn_zone_x[0],
+            self.target_spawn_zone_y[1] - self.target_spawn_zone_y[0]
         )
-        print(
-            self.target_spawn_zone_x[0],
-            self.target_spawn_zone_x[1],
-            self.target_spawn_zone_y[0],
-            self.target_spawn_zone_y[1]
-        )
+        pygame.draw.rect(self.screen, (0x7f, 0, 0x0), r)
+
+        # draw projection lines
+        line = (10000, 10000)
+        tmp = (r[0], r[1])
+        pygame.draw.line(self.screen, (0, 0, 0x7f), tmp, (tmp[0] - line[0], tmp[1] - line[1]), 4)
+        tmp = (r[0], r[1] + r[3])
+        pygame.draw.line(self.screen, (0, 0, 0x7f), tmp, (tmp[0] - line[0], tmp[1] + line[1]), 4)
+        tmp = (r[0] + r[2], r[1])
+        pygame.draw.line(self.screen, (0, 0, 0x7f), tmp, (tmp[0] + line[0], tmp[1] - line[1]), 4)
+        tmp = (r[0] + r[2], r[1] + r[3])
+        pygame.draw.line(self.screen, (0, 0, 0x7f), tmp, (tmp[0] + line[0], tmp[1] + line[1]), 4)
 
         # adapt target display to inverse of mouse mouvement (first person)
         for i, t in enumerate(self.targets):
