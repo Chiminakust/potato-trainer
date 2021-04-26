@@ -1,15 +1,24 @@
+import argparse
+from math import atan
 import pygame
 import pygame.mouse as mouse
-pygame.init()
-font = pygame.font.SysFont("monospace", 18)
 from random import randint
 from time import time
-from math import atan
 
 
 class PotatoTrainer:
 
-    def __init__(self):
+    def __init__(self, moving, num_targets, target_speed):
+        # pygame stuff
+        pygame.init()
+        self.font = pygame.font.SysFont("monospace", 18)
+
+        # game mode modifiers
+        self.moving = moving
+        self.max_targets = num_targets
+        self.target_speed = target_speed
+
+        # display stuff
         self.banner_h = 200
         self.banner_color = (0, 0, 0)
         self.banner_text_color = (0, 255, 0)
@@ -21,7 +30,6 @@ class PotatoTrainer:
         self.th = 75
 
         # targets stuff
-        self.max_targets = 10
         self.targets = [None] * self.max_targets
         self.tidx = 0 # target index
         self.screen = pygame.display.set_mode([self.w, self.h])
@@ -49,7 +57,7 @@ class PotatoTrainer:
         pygame.event.set_grab(True)
 
         # distance to "wall" in pixels (radius of sphere)
-        self.R = self.w / 2
+        self.R = self.w / 400
 
         # crosshair color, position and dimension
         tmp = 40 # length of crosshair bar
@@ -57,6 +65,7 @@ class PotatoTrainer:
         self.crosshair_y = (self.w / 2, (self.targetzone_h - tmp) / 2 + 1, tmp / 10, tmp)
         self.crosshair_coord = (self.crosshair_y[0], self.crosshair_x[1])
         self.crosshair_color = (0, 0, 0)
+
 
     def get_num_targets(self):
         return sum(x is not None for x in self.targets)
@@ -142,22 +151,9 @@ class PotatoTrainer:
             self.handle_hit(tid)
         else:
             self.handle_miss()
-    
 
-    def update_targets(self):
-        mouse_move = (0, 0)
-        prev_mouse_move = mouse_move
-        mouse_move = mouse.get_rel()
 
-        # project 
-        mouse_move = (
-            self.R * atan(mouse_move[0] / (self.R * 0.5)),
-            self.R * atan(mouse_move[1] / (self.R * 0.5))
-        )
-
-        # adapt target's origin (for spawning new targets)
-        self.target_origin = (self.target_origin[0] - mouse_move[0], self.target_origin[1] - mouse_move[1])
-
+    def draw_room(self):
         # draw target spawn zone
         r = (
             self.target_spawn_zone_x[0] + self.target_origin[0],
@@ -177,6 +173,23 @@ class PotatoTrainer:
         pygame.draw.line(self.screen, (0, 0, 0x7f), tmp, (tmp[0] + line[0], tmp[1] - line[1]), 4)
         tmp = (r[0] + r[2], r[1] + r[3])
         pygame.draw.line(self.screen, (0, 0, 0x7f), tmp, (tmp[0] + line[0], tmp[1] + line[1]), 4)
+    
+
+    def update_targets(self):
+        mouse_move = (0, 0)
+        prev_mouse_move = mouse_move
+        mouse_move = mouse.get_rel()
+
+        # try to project mouse movement on a sphere
+        mouse_move = (
+            self.R * atan(mouse_move[0] / (self.R * 0.5)),
+            self.R * atan(mouse_move[1] / (self.R * 0.5))
+        )
+
+        # adapt target's origin (for spawning new targets)
+        self.target_origin = (self.target_origin[0] - mouse_move[0], self.target_origin[1] - mouse_move[1])
+
+        self.draw_room()
 
         # adapt target display to inverse of mouse mouvement (first person)
         for i, t in enumerate(self.targets):
@@ -197,7 +210,7 @@ class PotatoTrainer:
         current_frame_time = time()
         fps = int(1 / (current_frame_time - self.last_frame_time))
         self.last_frame_time = current_frame_time
-        fps_txt = font.render(f"{fps} fps", 1, self.banner_text_color)
+        fps_txt = self.font.render(f"{fps} fps", 1, self.banner_text_color)
         self.screen.blit(fps_txt, (Ox, Oy))
 
         # draw score counter
@@ -205,7 +218,7 @@ class PotatoTrainer:
             accuracy = 100.0 * self.hits / (self.hits + self.misses)
         except ZeroDivisionError:
             accuracy = 100.0
-        score_txt = font.render(f"Hit:Miss = {self.hits}:{self.misses} ({accuracy}%)", 1, self.banner_text_color)
+        score_txt = self.font.render(f"Hit:Miss = {self.hits}:{self.misses} ({accuracy}%)", 1, self.banner_text_color)
         self.screen.blit(score_txt, (Ox, Oy + 20))
 
 
@@ -248,7 +261,17 @@ class PotatoTrainer:
         
 
 if __name__ == '__main__':
-    game = PotatoTrainer()
+    
+    parser = argparse.ArgumentParser(description='Aim trainer for potato computers')
+    parser.add_argument('moving', metavar='moving', type=str, default='no',
+                        help='how the targets move (no | floating | bouncing')
+    parser.add_argument('num_targets', metavar='N targets', type=int, default=10,
+                        help='how many targets on screen at once')
+    parser.add_argument('target_speed', metavar='speed', type=int, default=10,
+                        help='how fast targets are moving')
+    args = parser.parse_args()
+
+    game = PotatoTrainer(args.moving, args.num_targets, args.target_speed)
     game.run()
 
 
